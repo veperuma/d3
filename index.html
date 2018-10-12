@@ -1,0 +1,327 @@
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+
+body {
+  font-family: 'Proxima Nova', sans-serif;
+}
+
+.g-hed {
+  text-align: left;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size:22px;
+  margin: 3px 0;
+}
+
+.g-source-bold {
+  text-align: left;
+  font-size:10px;
+  font-weight: bold;
+}
+
+.g-source-reg {
+  text-align: left;
+  font-size:10px;
+}
+
+.g-source {
+  margin: 10px 0;
+}
+
+.g-intro {
+  font-size: 16px;
+  margin: 0px 0px 10px 0px;
+}
+
+.states {
+  fill: #d3d3d3;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+}
+
+.q0-9 { fill: #bc8f8f; }
+.q1-9 { fill: #cd5c5c; }
+.q2-9 { fill: #8b4513; }
+.q3-9 { fill: #a0522d; }
+.q4-9 { fill: #cd853f; }
+
+#q0-9 { background-color: #bc8f8f; }
+#q1-9 { background-color: #cd5c5c; }
+#q2-9 { background-color: #8b4513; }
+#q3-9 { background-color: #a0522d; }
+#q4-9 { background-color: #cd853f; }
+
+div.tooltip {
+  position: absolute;
+  left: 75px;
+  text-align: center;
+  height: 12px;
+  padding: 8px;
+  font-size: 13px;
+  font-family: 'Proxima-Nova', sans-serif;
+  background: #FFFFFF;
+  border: 1px solid #989898;
+  pointer-events: none;
+}
+
+.block {
+  width:18%;
+  height: 15px;
+  display:inline-block;
+}
+
+svg .barsDisplay {
+    fill: #bc8f8f;
+    stroke-width: 0px;
+}
+svg .projection {
+  fill: white;
+}
+.mycircle {
+  fill: blue;
+  stroke: red;
+  stroke-width: 5;
+}
+
+</style>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.7.0/d3.min.js"></script>
+  <script>
+    version5 = d3
+    window.d3 = null
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+  <script>
+    version3 = d3
+    window.d3 = null
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.19/topojson.min.js"></script>
+
+</head>
+<body>
+  <h5 class="g-hed"></h5>
+  <p class="g-intro"></p>
+  <div class="g-chart"></div>
+    <div class="legend">
+    <div class="block" id="q0-9"></div>
+    <div class="block" id="q1-9"></div>
+    <div class="block" id="q2-9"></div>
+    <div class="block" id="q3-9"></div>
+    <div class="block" id="q4-9"></div>
+  </div>
+  <div class="g-source"><span class="g-source-bold"></span><span class="g-source-reg"></span></div>
+</body>
+
+<div>
+
+
+<script type="text/javascript">
+
+var div = version3.select("body").append("div")
+  .attr("class", "tooltip")
+  .style("opacity", 0);
+
+var margin = {top: 10, left: 10, bottom: 10, right: 10}
+  , width = window.outerWidth
+  , width = width - margin.left - margin.right
+  , mapRatio = .5
+  , height = width * mapRatio;
+
+var projection = version3.geo.albersUsa()
+    .scale(width)
+    .translate([width / 2, height / 2]);
+
+var path = version3.geo.path()
+    .projection(projection);
+
+var map = version3.select(".g-chart").append("svg")
+  .style('height', height + 'px')
+  .style('width', width + 'px');
+
+queue()
+    .defer(version3.json, "https://raw.githubusercontent.com/veperuma/d3/master/us-10m.json")
+    .defer(version3.csv, "https://raw.githubusercontent.com/veperuma/d3/master/losses2015_transformed_1.csv")
+    .await(ready);
+
+version3.selection.prototype.moveToFront = function() {
+  return this.each(function(){
+    this.parentNode.appendChild(this);
+  });
+};
+
+version3.selection.prototype.moveToBack = function() {
+  return this.each(function() {
+  var firstChild = this.parentNode.firstChild;
+    if (firstChild) {
+      this.parentNode.insertBefore(this, firstChild);
+    }
+  });
+};
+
+function ready(error, us, maptemplate) {
+  if (error) throw error;
+
+
+
+  var abc = version3.median(maptemplate, function(d) { return d.Amount;});
+  var quantize = version3.scale.quantize()
+    .domain([0, abc])
+    .range(version3.range(5).map(function(i) { return "q" + i + "-9"; }));
+
+  var dataByFIPS = {};
+  maptemplate.forEach(function(d) { dataByFIPS[d.State_Code] = +d.Amount; });
+
+  var stateByFIPS = {};
+  maptemplate.forEach(function(d) { stateByFIPS[d.State_Code] = d.State_Abv; });
+
+  version3.select(".g-hed").text("Choropleth Map");
+
+  var that = this;
+  map.append("g")
+    .attr("class", "states")
+    .selectAll("path")
+    .data(topojson.feature(us, us.objects.states).features)
+    .enter().append("path")
+    .attr("d", path)
+    .attr("class", function(d) { return quantize(dataByFIPS[d.id]); })
+    .on("mouseover", function(d) {
+      var sel = version3.select(this);
+      sel.moveToFront();
+      version3.select(this).transition().duration(300).style("opacity", 0.8);
+      div.transition().duration(300)
+      .style("opacity", 1)
+      div.text(stateByFIPS[d.id] + ": " + dataByFIPS[d.id])
+      .style("left", (version3.event.pageX) + "px")
+      .style("top", (version3.event.pageY -30) + "px");
+    })
+    .on("mouseout", function() {
+      var sel = version3.select(this);
+        sel.moveToBack();
+      version3.select(this)
+      .transition().duration(300)
+      .style("opacity", 1);
+      div.transition().duration(300)
+      .style("opacity", 0);
+    });
+version3.select(window).on('resize', resize);
+
+function resize() {
+
+    var w = version3.select(".g-chart").node().clientWidth;
+
+    width = w - margin.left - margin.right;
+    height = width * mapRatio;
+
+    var newProjection = version3.geo.albersUsa()
+      .scale(width)
+      .translate([width / 2, height / 2]);
+
+    path = version3.geo.path()
+      .projection(newProjection);
+
+    map
+        .style('width', width + 'px')
+        .style('height', height + 'px');
+
+    map.selectAll("path").attr('d', path);
+}
+}
+
+</script></div>
+
+<div>
+  <h2><u>Bar Chart </u></h2>
+  <script type="text/javascript">
+  var lossInfo;
+  var div = version5.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+  function loadData()
+  {
+    version5.csv("https://raw.githubusercontent.com/veperuma/d3/master/losses2015_transformed.csv")
+      .then(function(data)
+    {
+      lossInfo = data;
+
+var Damage_Desc_Name = version5.nest()
+.key(function(d) { return d.Damage_Descp; })
+.rollup(function(d){ return version5.sum(d,function(g){return g.Amount;})})
+.entries(lossInfo);
+Damage_Desc_Name.sort(function(x,y){
+return version5.ascending(x.value,y.value);
+});
+
+xscale=version5.scaleLinear().domain([Damage_Desc_Name[0].value,Damage_Desc_Name[32].value]).range([0,1000]);
+ticks=xscale.ticks(8);
+yscale=version5.scaleLinear();
+      createBarChart(Damage_Desc_Name);
+
+    });
+  }
+function createBarChart(Damage_Desc_Name) {
+var x_axis=version5.axisBottom().scale(xscale);
+x_axis.tickValues(ticks).tickFormat(function(d){return d/1000000+"M" });
+    var svg = version5.select("body")
+                .append("svg")
+                .attr("width", 1000)
+                .attr("height", 800)
+    .attr("margin",20);
+    svg.selectAll("g")
+        .data(Damage_Desc_Name)
+        .enter()
+        .append("rect")
+        .attr("x", 225)
+        .attr("y", function(d, i)
+          {
+            return (i+1)*(20+2);
+          })
+        .attr("height",10)
+        .attr("width", function(d, i)
+          {
+ return xscale(d.value);
+
+          })
+        .attr("class", "barsDisplay")
+        .on("mouseover", function(d) {
+          div.transition().duration(300)
+          .style("opacity", 1)
+          div.text(d.key + " : " + d.value)
+          .style("left", (version5.event.pageX) + "px")
+          .style("top", (version5.event.pageY -30) + "px");
+        })
+        .on("mouseout", function() {
+
+        
+          div.transition().duration(300)
+          .style("opacity", 0);
+        });
+
+    svg.selectAll("text.Damage_Descp")
+        .data(Damage_Desc_Name)
+        .enter()
+        .append("text")
+        .text(function(d, i)
+          {
+            return d.key;
+          })
+        .attr("x", 0)
+        .attr("y", function(d, i)
+          {
+            return (i+1)*(20+2) + 20;
+          });
+svg.append("line")
+.style("stroke","black")
+.attr("x1",220)
+.attr("y1",22)
+.attr("x2",220)
+.attr("y2",745)
+
+
+svg.append("g").attr("class","axis").attr("transform","translate(220,745)").call(x_axis)
+  }
+  window.onload = loadData;
+  </script>
+</div>
